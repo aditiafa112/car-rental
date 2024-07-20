@@ -3,6 +3,8 @@ package com.example.carrental.controller;
 import com.example.carrental.model.Rental;
 import com.example.carrental.service.RentalService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,11 +26,24 @@ public class RentalController {
         return rentalService.findById(id);
     }
 
+    @FunctionalInterface
+    interface TotalPriceCalculator {
+        Integer calculate(Integer carPrice, Integer days);
+    }
+
     @PostMapping
-    public Rental createRental(@RequestBody Rental rental) {
-        Integer totalPrice = rental.getCar().getPrice() * (rental.getStartDate().until(rental.getEndDate()).getDays() + 1);
-        rental.setTotalPrice(totalPrice);
-        return rentalService.save(rental);
+    public ResponseEntity<?> createRental(@RequestBody Rental rental) {
+        try {
+            TotalPriceCalculator calculator = (carPrice, days) -> carPrice * days;
+            Integer carPrice = rental.getCar().getPrice();
+            Integer days = rental.getStartDate().until(rental.getEndDate()).getDays() + 1;
+            Integer totalPrice = calculator.calculate(carPrice, days);
+            rental.setTotalPrice(totalPrice);
+            Rental savedRental = rentalService.save(rental);
+            return new ResponseEntity<>(savedRental, HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
     }
 
     @PutMapping("/{id}")
